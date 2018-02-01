@@ -296,6 +296,8 @@ func (self *worker) wait() {
 			if result == nil {
 				continue
 			}
+			// Add log
+			log.Info("挖矿结果接收完毕","结果信息:",result,"块信息:",result.Block)
 			block := result.Block
 			work := result.Work
 
@@ -320,8 +322,9 @@ func (self *worker) wait() {
 				mustCommitNewWork = false
 			}
 			// Broadcast the block and announce chain insertion event
-			//　通过p2p的形式将块广播到连接的节点,走的还是channel
 			self.mux.Post(core.NewMinedBlockEvent{Block: block})
+			// Add log
+			log.Info("挖矿结果本地验证通过,产生新块事件，广播给其他节点","块信息:",block)
 			var (
 				events []interface{}
 				logs   = work.state.Logs()
@@ -336,6 +339,8 @@ func (self *worker) wait() {
 			self.unconfirmed.Insert(block.NumberU64(), block.Hash())
 
 			if mustCommitNewWork {
+				// Add log
+				log.Info("挖矿记过本地处理完毕，开启下一个块的工作")
 				self.commitNewWork()
 			}
 		}
@@ -414,7 +419,6 @@ func (self *worker) commitNewWork() {
 		ParentHash: parent.Hash(),
 		Number:     num.Add(num, common.Big1),
 		GasLimit:   core.CalcGasLimit(parent),
-		GasUsed:    new(big.Int),
 		Extra:      self.extra,
 		Time:       big.NewInt(tstamp),
 	}
@@ -422,7 +426,6 @@ func (self *worker) commitNewWork() {
 	if atomic.LoadInt32(&self.mining) == 1 {
 		header.Coinbase = self.coinbase
 	}
-	//　cal 难度
 	if err := self.engine.Prepare(self.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
 		return
@@ -481,7 +484,6 @@ func (self *worker) commitNewWork() {
 	for _, hash := range badUncles {
 		delete(self.possibleUncles, hash)
 	}
-	// 计算产出该块的奖励
 	// Create the new block to seal with the consensus engine
 	if work.Block, err = self.engine.Finalize(self.chain, header, work.state, work.txs, uncles, work.receipts); err != nil {
 		log.Error("Failed to finalize block for sealing", "err", err)
@@ -492,6 +494,8 @@ func (self *worker) commitNewWork() {
 		log.Info("Commit new mining work", "number", work.Block.Number(), "txs", work.tcount, "uncles", len(uncles), "elapsed", common.PrettyDuration(time.Since(tstart)))
 		self.unconfirmed.Shift(work.Block.NumberU64() - 1)
 	}
+	// Add log
+	log.Info("本次挖矿任务生成,推送给各个代理进行哈希难度计算","blockNumber",work.Block.Number())
 	self.push(work)
 }
 
@@ -516,6 +520,11 @@ func (env *Work) commitTransactions(mux *event.TypeMux, txs *types.TransactionsB
 	var coalescedLogs []*types.Log
 
 	for {
+		// If we don't have enough gas for any further transactions then we're done
+		if gp.Gas() < params.TxGas {
+			log.Trace("Not enough gas for further transactions", "gp", gp)
+			break
+		}
 		// Retrieve the next transaction and abort if all done
 		tx := txs.Peek()
 		if tx == nil {
@@ -591,7 +600,7 @@ func (env *Work) commitTransactions(mux *event.TypeMux, txs *types.TransactionsB
 func (env *Work) commitTransaction(tx *types.Transaction, bc *core.BlockChain, coinbase common.Address, gp *core.GasPool) (error, []*types.Log) {
 	snap := env.state.Snapshot()
 
-	receipt, _, err := core.ApplyTransaction(env.config, bc, &coinbase, gp, env.state, env.header, tx, env.header.GasUsed, vm.Config{})
+	receipt, _, err := core.ApplyTransaction(env.config, bc, &coinbase, gp, env.state, env.header, tx, &env.header.GasUsed, vm.Config{})
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
 		return err, nil

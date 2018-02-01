@@ -39,7 +39,8 @@ type CpuAgent struct {
 	isMining int32 // isMining indicates whether the agent is currently mining
 }
 
-func NewCpuAgent(chain consensus.ChainReader, engine consensus.Engine) *CpuAgent {
+func NewCpuAgent(chain consensus.ChainReader, engine consensus.
+	Engine) *CpuAgent {
 	miner := &CpuAgent{
 		chain:  chain,
 		engine: engine,
@@ -85,6 +86,8 @@ out:
 				close(self.quitCurrentOp)
 			}
 			self.quitCurrentOp = make(chan struct{})
+			// Add log
+			log.Info("单个cpu代理节点挖矿任务接收完毕,开始进行hash运算","任务信息：",work)
 			go self.mine(work, self.quitCurrentOp)
 			self.mu.Unlock()
 		case <-self.stop:
@@ -103,6 +106,8 @@ func (self *CpuAgent) mine(work *Work, stop <-chan struct{}) {
 	if result, err := self.engine.Seal(self.chain, work.Block, stop); result != nil {
 		log.Info("Successfully sealed new block", "number", result.Number(), "hash", result.Hash())
 		self.returnCh <- &Result{work, result}
+		// Add log
+		log.Info("单个cpu代理节点挖矿成功,将块写入结果通道完毕","结果信息：",&Result{work, result})
 	} else {
 		if err != nil {
 			log.Warn("Block sealing failed", "err", err)

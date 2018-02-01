@@ -212,6 +212,7 @@ func (f *Fetcher) Enqueue(peer string, block *types.Block) error {
 	}
 	select {
 	case f.inject <- op:
+		log.Info("Enqueue","获取到广播到块，写入inject通道",op)
 		return nil
 	case <-f.quit:
 		return errTerminated
@@ -292,6 +293,7 @@ func (f *Fetcher) loop() {
 		height := f.chainHeight()
 		for !f.queue.Empty() {
 			op := f.queue.PopItem().(*inject)
+			log.Info("loop","取出队列块到信息,开始处理",op)
 			if f.queueChangeHook != nil {
 				f.queueChangeHook(op.block.Hash(), false)
 			}
@@ -353,6 +355,7 @@ func (f *Fetcher) loop() {
 			}
 
 		case op := <-f.inject:
+			log.Info("接收到inject管道过来到块",op)
 			// A direct block insertion was requested, try and fill any pending gaps
 			propBroadcastInMeter.Mark(1)
 			f.enqueue(op.origin, op.block)
@@ -625,6 +628,7 @@ func (f *Fetcher) enqueue(peer string, block *types.Block) {
 		f.queues[peer] = count
 		f.queued[hash] = op
 		f.queue.Push(op, -float32(block.NumberU64()))
+		log.Info("当前节点没有该块,加入到队列完毕",op)
 		if f.queueChangeHook != nil {
 			f.queueChangeHook(op.block.Hash(), true)
 		}
@@ -655,6 +659,7 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 			// All ok, quickly propagate to our peers
 			propBroadcastOutTimer.UpdateSince(block.ReceivedAt)
 			go f.broadcastBlock(block, true)
+			log.Info("验证该块合格，向节点广播块信息",block)
 
 		case consensus.ErrFutureBlock:
 			// Weird future block, don't fail, but neither propagate
@@ -673,6 +678,7 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 		// If import succeeded, broadcast the block
 		propAnnounceOutTimer.UpdateSince(block.ReceivedAt)
 		go f.broadcastBlock(block, false)
+		log.Info("当前节点插入块完毕，广播块hash",block.Hash())
 
 		// Invoke the testing hook if needed
 		if f.importedHook != nil {

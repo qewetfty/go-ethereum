@@ -182,7 +182,7 @@ func blockBodyKey(hash common.Hash, number uint64) []byte {
 	return append(append(bodyPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
 }
 
-// GetBody retrieves the block body (transactions, uncles) corresponding to the
+// GetBody retrieves the block body (transactons, uncles) corresponding to the
 // hash, nil if none found.
 func GetBody(db DatabaseReader, hash common.Hash, number uint64) *types.Body {
 	data := GetBodyRLP(db, hash, number)

@@ -110,6 +110,8 @@ func (pm *ProtocolManager) txsyncLoop() {
 		case s := <-pm.txsyncCh:
 			pending[s.p.ID()] = s
 			if !sending {
+				// Add log
+				log.Info("开始同步交易","交易信息：",pack.txs)
 				send(s)
 			}
 		case err := <-done:
@@ -161,7 +163,6 @@ func (pm *ProtocolManager) syncer() {
 }
 
 // synchronise tries to sync up our local block chain with a remote peer.
-// 尝试 让本地区块链跟远端同步。
 func (pm *ProtocolManager) synchronise(peer *peer) {
 	// Short circuit if no peers are available
 	if peer == nil {

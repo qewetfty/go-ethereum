@@ -160,8 +160,6 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 	if len(manager.SubProtocols) == 0 {
 		return nil, errIncompatibleConfig
 	}
-	// downloader是负责从其他的peer来同步自身数据。
-	// downloader是全链同步工具
 	// Construct the different synchronisation mechanisms
 	manager.downloader = downloader.New(mode, chaindb, manager.eventMux, blockchain, nil, manager.removePeer)
 
@@ -177,12 +175,9 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 			log.Warn("Discarded bad propagated block", "number", blocks[0].Number(), "hash", blocks[0].Hash())
 			return 0, nil
 		}
-		// 设置开始接收交易
 		atomic.StoreUint32(&manager.acceptTxs, 1) // Mark initial sync done on any fetcher import
 		return manager.blockchain.InsertChain(blocks)
 	}
-	// 生成一个fetcher
-	// Fetcher负责积累来自各个peer的区块通知并安排进行检索。
 	manager.fetcher = fetcher.New(blockchain.GetBlockByHash, validator, manager.BroadcastBlock, heighter, inserter, manager.removePeer)
 
 	return manager, nil
@@ -211,21 +206,16 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 	pm.maxPeers = maxPeers
 
 	// broadcast transactions
-	// 广播交易的通道。 txCh会作为txpool的TxPreEvent订阅通道。txpool有了这种消息会通知给这个txCh。 广播交易的goroutine会把这个消息广播出去。
 	pm.txCh = make(chan core.TxPreEvent, txChanSize)
-	// 订阅的回执
 	pm.txSub = pm.txpool.SubscribeTxPreEvent(pm.txCh)
 	go pm.txBroadcastLoop()
 
-	// 订阅挖矿消息。当新的Block被挖出来的时候会产生消息。 这个订阅和上面的那个订阅采用了两种不同的模式，这种是标记为Deprecated的订阅方式。
 	// broadcast mined blocks
 	pm.minedBlockSub = pm.eventMux.Subscribe(core.NewMinedBlockEvent{})
-	//　挖矿广播 goroutine 当挖出来的时候需要尽快的广播到网络上面去 本地挖出的块通过这种形式广播出去
 	go pm.minedBroadcastLoop()
-	// 同步器负责周期性地与网络同步，下载散列和块以及处理通知处理程序。
+
 	// start sync handlers
 	go pm.syncer()
-	// txsyncLoop负责每个新连接的初始事务同步。 当新的peer出现时，我们转发所有当前待处理的事务。 为了最小化出口带宽使用，我们一次只发送一个小包。
 	go pm.txsyncLoop()
 }
 
@@ -260,7 +250,6 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *p
 
 // handle is the callback invoked to manage the life cycle of an eth peer. When
 // this function terminates, the peer is disconnected.
-// handle是一个回调方法，用来管理eth的peer的生命周期管理。 当这个方法退出的时候，peer的连接也会断开。
 func (pm *ProtocolManager) handle(p *peer) error {
 	if pm.peers.Len() >= pm.maxPeers {
 		return p2p.DiscTooManyPeers
@@ -269,7 +258,6 @@ func (pm *ProtocolManager) handle(p *peer) error {
 
 	// Execute the Ethereum handshake
 	td, head, genesis := pm.blockchain.Status()
-	// td是total difficult, head是当前的区块头，genesis是创世区块的信息。 只有创世区块相同才能握手成功。
 	if err := p.Handshake(pm.networkId, td, head, genesis); err != nil {
 		p.Log().Debug("Ethereum handshake failed", "err", err)
 		return err
@@ -283,14 +271,13 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		return err
 	}
 	defer pm.removePeer(p.id)
-	// 把peer注册给downloader. 如果downloader认为这个peer被禁，那么断开连接。
+
 	// Register the peer in the downloader. If the downloader considers it banned, we disconnect
 	if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
 		return err
 	}
 	// Propagate existing transactions. new transactions appearing
 	// after this will be sent via broadcasts.
-	// 把当前pending的交易发送给对方，这个只在连接刚建立的时候发生
 	pm.syncTransactions(p)
 
 	// If we're DAO hard-fork aware, validate any remote peer with regard to the hard-fork
@@ -313,7 +300,6 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		}()
 	}
 	// main loop. handle incoming messages.
-	// 主循环。 处理进入的消息。
 	for {
 		if err := pm.handleMsg(p); err != nil {
 			p.Log().Debug("Ethereum message handling failed", "err", err)
@@ -408,14 +394,14 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			case query.Reverse:
 				// Number based traversal towards the genesis block
 				if query.Origin.Number >= query.Skip+1 {
-					query.Origin.Number -= (query.Skip + 1)
+					query.Origin.Number -= query.Skip + 1
 				} else {
 					unknown = true
 				}
 
 			case !query.Reverse:
 				// Number based traversal towards the leaf block
-				query.Origin.Number += (query.Skip + 1)
+				query.Origin.Number += query.Skip + 1
 			}
 		}
 		return p.SendBlockHeaders(headers)
@@ -628,6 +614,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			}
 		}
 		for _, block := range unknown {
+			log.Info("NewBlockHashesMsg", "通知拉取本地没有的块", p.id, block.Hash)
 			pm.fetcher.Notify(p.id, block.Hash, block.Number, time.Now(), p.RequestOneHeader, p.RequestBodies)
 		}
 
@@ -639,6 +626,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		request.Block.ReceivedAt = msg.ReceivedAt
 		request.Block.ReceivedFrom = p
+		log.Info("NewBlockMsg", "收到广播新块到信息，加入到处理到队列中，记录块hash等待同步", "块信息：", request.Block)
 
 		// Mark the peer as owning the block and schedule it for import
 		p.MarkBlock(request.Block.Hash())
@@ -659,11 +647,13 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			// scenario should easily be covered by the fetcher.
 			currentBlock := pm.blockchain.CurrentBlock()
 			if trueTD.Cmp(pm.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())) > 0 {
+				log.Info("NewBlockMsg", "落后相连节点，开始同步下载块", "远程节点信息：", p)
 				go pm.synchronise(p)
 			}
 		}
 
 	case msg.Code == TxMsg:
+		log.Info("收到广播出来的交易","message",msg)
 		// Transactions arrived, make sure we have a valid and fresh chain to handle them
 		if atomic.LoadUint32(&pm.acceptTxs) == 0 {
 			break
@@ -673,14 +663,17 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&txs); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+		log.Info("收到广播出来的交易", "交易列表信息", txs)
 		for i, tx := range txs {
 			// Validate and mark the remote transaction
 			if tx == nil {
 				return errResp(ErrDecode, "transaction %d is nil", i)
 			}
+			// 标记成已知的交易，确保不会重复
 			p.MarkTransaction(tx.Hash())
 		}
 		pm.txpool.AddRemotes(txs)
+		log.Info("将远程广播交易加入到当前节点的交易池完毕")
 
 	default:
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
@@ -692,7 +685,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 // will only announce it's availability (depending what's requested).
 func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 	hash := block.Hash()
+	// 获取到不知道该块到节点列表
 	peers := pm.peers.PeersWithoutBlock(hash)
+	// Add log
+	log.Info("本地节点挖矿结果向其他节点广播处理开始", "根据hash的对等节点数：", len(peers))
 
 	// If propagation is requested, send to a subset of the peer
 	if propagate {
@@ -706,6 +702,8 @@ func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 		}
 		// Send the block to a subset of our peers
 		transfer := peers[:int(math.Sqrt(float64(len(peers))))]
+		// Add log
+		log.Info("本地节点挖矿结果向其他节点广播处理开始", "传递的对等节点数：", len(transfer))
 		for _, peer := range transfer {
 			peer.SendNewBlock(block, td)
 		}
@@ -719,14 +717,18 @@ func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 		}
 		log.Trace("Announced block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
 	}
+	// Add log
+	log.Info("本地节点挖矿结果向其他节点广播处理结束", "块信息:", block)
 }
 
 // BroadcastTx will propagate a transaction to all peers which are not known to
 // already have the given transaction.
 func (pm *ProtocolManager) BroadcastTx(hash common.Hash, tx *types.Transaction) {
 	// Broadcast transaction to a batch of peers not knowing about it
+	// 获取到不知道该笔交易到节点列表
 	peers := pm.peers.PeersWithoutTx(hash)
 	//FIXME include this again: peers = peers[:int(math.Sqrt(float64(len(peers))))]
+	log.Info("开始广播交易", "不知道该交易的节点数为", len(peers), "trx", tx)
 	for _, peer := range peers {
 		peer.SendTransactions(types.Transactions{tx})
 	}
@@ -739,19 +741,20 @@ func (self *ProtocolManager) minedBroadcastLoop() {
 	for obj := range self.minedBlockSub.Chan() {
 		switch ev := obj.Data.(type) {
 		case core.NewMinedBlockEvent:
+			// Add log
+			log.Info("接收到本地节点挖矿的广播事件", "块信息:", ev.Block)
 			self.BroadcastBlock(ev.Block, true)  // First propagate block to peers
 			self.BroadcastBlock(ev.Block, false) // Only then announce to the rest
 		}
 	}
 }
 
-// 交易广播。txBroadcastLoop 在start的时候启动的goroutine。
-// txCh在txpool接收到一条合法的交易的时候会往这个上面写入事件。 然后把交易广播给所有的peers
 func (self *ProtocolManager) txBroadcastLoop() {
 	for {
 		select {
-		// 接收本地交易,并广播出去
 		case event := <-self.txCh:
+			// Add log
+			log.Info("交易事件写入到管道中，准备广播", "交易信息：", event.Tx)
 			self.BroadcastTx(event.Tx.Hash(), event.Tx)
 
 		// Err() channel will be closed when unsubscribing.
@@ -761,22 +764,24 @@ func (self *ProtocolManager) txBroadcastLoop() {
 	}
 }
 
-// EthNodeInfo represents a short summary of the Ethereum sub-protocol metadata known
-// about the host peer.
-type EthNodeInfo struct {
-	Network    uint64      `json:"network"`    // Ethereum network ID (1=Frontier, 2=Morden, Ropsten=3)
-	Difficulty *big.Int    `json:"difficulty"` // Total difficulty of the host's blockchain
-	Genesis    common.Hash `json:"genesis"`    // SHA3 hash of the host's genesis block
-	Head       common.Hash `json:"head"`       // SHA3 hash of the host's best owned block
+// NodeInfo represents a short summary of the Ethereum sub-protocol metadata
+// known about the host peer.
+type NodeInfo struct {
+	Network    uint64              `json:"network"`    // Ethereum network ID (1=Frontier, 2=Morden, Ropsten=3, Rinkeby=4)
+	Difficulty *big.Int            `json:"difficulty"` // Total difficulty of the host's blockchain
+	Genesis    common.Hash         `json:"genesis"`    // SHA3 hash of the host's genesis block
+	Config     *params.ChainConfig `json:"config"`     // Chain configuration for the fork rules
+	Head       common.Hash         `json:"head"`       // SHA3 hash of the host's best owned block
 }
 
 // NodeInfo retrieves some protocol metadata about the running host node.
-func (self *ProtocolManager) NodeInfo() *EthNodeInfo {
+func (self *ProtocolManager) NodeInfo() *NodeInfo {
 	currentBlock := self.blockchain.CurrentBlock()
-	return &EthNodeInfo{
+	return &NodeInfo{
 		Network:    self.networkId,
 		Difficulty: self.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64()),
 		Genesis:    self.blockchain.Genesis().Hash(),
+		Config:     self.blockchain.Config(),
 		Head:       currentBlock.Hash(),
 	}
 }

@@ -5078,7 +5078,9 @@ Method.prototype.buildCall = function() {
                 payload.callback(err, method.formatOutput(result));
             });
         }
-        return method.formatOutput(method.requestManager.send(payload));
+        return method.formatOutput(
+
+            method.requestManager.send(payload));
     };
     send.request = this.request.bind(this);
     return send;

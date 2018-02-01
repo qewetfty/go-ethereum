@@ -116,6 +116,8 @@ func (self *Miner) Start(coinbase common.Address) {
 
 	log.Info("Starting mining operation")
 	self.worker.start()
+	// Add log
+	log.Info("各个cpu代理挖矿工作启动完毕","代理数量:",len(self.worker.agents))
 	self.worker.commitNewWork()
 }
 

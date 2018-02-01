@@ -347,18 +347,7 @@ func hashimotoLight(size uint64, cache []uint32, hash []byte, nonce uint64) ([]b
 // hashimotoFull aggregates data from the full dataset (using the full in-memory
 // dataset) in order to produce our final value for a particular header hash and
 // nonce.
-//简单介绍一下上图所代表的代码流程：
-//首先，hashimoto()函数将入参@hash和@nonce合并成一个40 bytes长的数组，取它的SHA-512哈希值取名seed，长度为64 bytes。
-//然后，将seed[]转化成以uint32为元素的数组mix[]，注意一个uint32数等于4 bytes，故而seed[]只能转化成16个uint32数，而mix[]数组长度32，所以此时mix[]数组前后各半是等值的。
-//接着，lookup()函数登场。用一个循环，不断调用lookup()从外部数据集中取出uint32元素类型数组，向mix[]数组中混入未知的数据。循环的次数可用参数调节，目前设为64次。
-//每次循环中，变化生成参数index，从而使得每次调用lookup()函数取出的数组都各不相同。这里混入数据的方式是一种类似向量“异或”的操作，来自于FNV算法。
-//待混淆数据完成后，得到一个基本上面目全非的mix[]，长度为32的uint32数组。这时，将其折叠(压缩)成一个长度缩小成原长1/4的uint32数组，折叠的操作方法还是来自FNV算法。
-//最后，将折叠后的mix[]由长度为8的uint32型数组直接转化成一个长度32的byte数组，这就是返回值@digest；同时将之前的seed[]数组与digest合并再取一次SHA-256哈希值，得到的长度32的byte数组，即返回值@result。
-//最终经过一系列多次、多种的哈希运算，hashimoto()返回两个长度均为32的byte数组 - digest[]和result[]。
-//回忆一下ethash.mine()函数中，对于hashimotoFull()的两个返回值，会直接以big.int整型数形式比较result和target；
-//如果符合要求，则将digest取SHA3-256的哈希值(256 bits)，并存于Header.MixDigest中，待以后Ethash.VerifySeal()可以加以验证。
 func hashimotoFull(dataset []uint32, hash []byte, nonce uint64) ([]byte, []byte) {
-	// 一个以非线性表查找方式进行的哈希函数！这种哈希函数的性能不仅取决于查找的逻辑，更多的依赖于所查找的表格的数据规模大小
 	lookup := func(index uint32) []uint32 {
 		offset := index * hashWords
 		return dataset[offset : offset+hashWords]
@@ -366,9 +355,11 @@ func hashimotoFull(dataset []uint32, hash []byte, nonce uint64) ([]byte, []byte)
 	return hashimoto(hash, nonce, uint64(len(dataset))*4, lookup)
 }
 
+const maxEpoch = 2048
+
 // datasetSizes is a lookup table for the ethash dataset size for the first 2048
 // epochs (i.e. 61440000 blocks).
-var datasetSizes = []uint64{
+var datasetSizes = [maxEpoch]uint64{
 	1073739904, 1082130304, 1090514816, 1098906752, 1107293056,
 	1115684224, 1124070016, 1132461952, 1140849536, 1149232768,
 	1157627776, 1166013824, 1174404736, 1182786944, 1191180416,
@@ -782,7 +773,7 @@ var datasetSizes = []uint64{
 
 // cacheSizes is a lookup table for the ethash verification cache size for the
 // first 2048 epochs (i.e. 61440000 blocks).
-var cacheSizes = []uint64{
+var cacheSizes = [maxEpoch]uint64{
 	16776896, 16907456, 17039296, 17170112, 17301056, 17432512, 17563072,
 	17693888, 17824192, 17955904, 18087488, 18218176, 18349504, 18481088,
 	18611392, 18742336, 18874304, 19004224, 19135936, 19267264, 19398208,
