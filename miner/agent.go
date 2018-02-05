@@ -87,7 +87,7 @@ out:
 			}
 			self.quitCurrentOp = make(chan struct{})
 			// Add log
-			log.Info("单个cpu代理节点挖矿任务接收完毕,开始进行hash运算","任务信息：",work)
+			log.Info("单个cpu代理节点挖矿任务接收完毕,开始进行产块","任务信息：",work)
 			go self.mine(work, self.quitCurrentOp)
 			self.mu.Unlock()
 		case <-self.stop:

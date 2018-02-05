@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/miner"
 	"math"
 	"math/big"
 	"sync"
@@ -745,6 +746,11 @@ func (self *ProtocolManager) minedBroadcastLoop() {
 			log.Info("接收到本地节点挖矿的广播事件", "块信息:", ev.Block)
 			self.BroadcastBlock(ev.Block, true)  // First propagate block to peers
 			self.BroadcastBlock(ev.Block, false) // Only then announce to the rest
+			var mod big.Int
+			if mod.Rem(ev.Block.Number(),common.Big3) == common.Big0{
+				log.Info("当前dpos最后的一轮已经结束，开始重新洗牌","block",ev.Block)
+                self.eventMux.Post(miner.CycleEvent{})
+			}
 		}
 	}
 }

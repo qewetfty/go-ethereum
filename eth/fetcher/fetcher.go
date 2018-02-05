@@ -19,6 +19,9 @@ package fetcher
 
 import (
 	"errors"
+	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/miner"
+	"math/big"
 	"math/rand"
 	"time"
 
@@ -143,6 +146,8 @@ type Fetcher struct {
 	fetchingHook       func([]common.Hash)     // Method to call upon starting a block (eth/61) or header (eth/62) fetch
 	completingHook     func([]common.Hash)     // Method to call upon starting a block body fetch (eth/62)
 	importedHook       func(*types.Block)      // Method to call upon successful block import (both eth/61 and eth/62)
+
+	mux          *event.TypeMux
 }
 
 // New creates a block fetcher to retrieve blocks based on hash announcements.
@@ -659,6 +664,14 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 			// All ok, quickly propagate to our peers
 			propBroadcastOutTimer.UpdateSince(block.ReceivedAt)
 			go f.broadcastBlock(block, true)
+			// 更新代理列表
+			var mod big.Int
+			if mod.Rem(block.Number(),common.Big3) == common.Big0{
+				log.Info("当前dpos最后的一轮已经结束，开始重新洗牌","block",block)
+				f.mux.Post(miner.CycleEvent{})
+
+			}
+
 			log.Info("验证该块合格，向节点广播块信息",block)
 
 		case consensus.ErrFutureBlock:

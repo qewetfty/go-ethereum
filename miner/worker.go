@@ -18,8 +18,11 @@ package miner
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
+	"github.com/ethereum/go-ethereum/consensus/dpos"
 	"math/big"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -49,6 +52,8 @@ const (
 	chainHeadChanSize = 10
 	// chainSideChanSize is the size of channel listening to ChainSideEvent.
 	chainSideChanSize = 10
+
+	prefixAddress = "0x"
 )
 
 // Agent can register themself with the worker
@@ -125,9 +130,11 @@ type worker struct {
 	// atomic status counters
 	mining int32
 	atWork int32
+
+	CurrentDposList []Delegate //当前周期的代理列表
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase common.Address, eth Backend, mux *event.TypeMux) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase common.Address, eth Backend, mux *event.TypeMux,delegate []Delegate) *worker {
 	worker := &worker{
 		config:         config,
 		engine:         engine,
@@ -144,6 +151,7 @@ func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase com
 		coinbase:       coinbase,
 		agents:         make(map[Agent]struct{}),
 		unconfirmed:    newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
+		CurrentDposList:delegate,
 	}
 	// Subscribe TxPreEvent for tx pool
 	worker.txSub = eth.TxPool().SubscribeTxPreEvent(worker.txCh)
@@ -297,7 +305,7 @@ func (self *worker) wait() {
 				continue
 			}
 			// Add log
-			log.Info("挖矿结果接收完毕","结果信息:",result,"块信息:",result.Block)
+			log.Info("挖矿结果接收完毕", "结果信息:", result, "块信息:", result.Block)
 			block := result.Block
 			work := result.Work
 
@@ -324,7 +332,7 @@ func (self *worker) wait() {
 			// Broadcast the block and announce chain insertion event
 			self.mux.Post(core.NewMinedBlockEvent{Block: block})
 			// Add log
-			log.Info("挖矿结果本地验证通过,产生新块事件，广播给其他节点","块信息:",block)
+			log.Info("挖矿结果本地验证通过,产生新块事件，广播给其他节点", "块信息:", block)
 			var (
 				events []interface{}
 				logs   = work.state.Logs()
@@ -494,9 +502,37 @@ func (self *worker) commitNewWork() {
 		log.Info("Commit new mining work", "number", work.Block.Number(), "txs", work.tcount, "uncles", len(uncles), "elapsed", common.PrettyDuration(time.Since(tstart)))
 		self.unconfirmed.Shift(work.Block.NumberU64() - 1)
 	}
+
+	nodeIndex := dpos.GetCurrentProduceNode(work.Block.Number().Int64(), 3)
+	node := self.CurrentDposList[nodeIndex]
+	log.Info("生成该块的代理节点信息：", node,"block",work.Block)
+
+	if self.checkNodeInAccounts(node.Address) {
+		log.Info("轮到该节点进行产块","node",node,"work",work)
+		self.push(work)
+	}
 	// Add log
-	log.Info("本次挖矿任务生成,推送给各个代理进行哈希难度计算","blockNumber",work.Block.Number())
-	self.push(work)
+	//log.Info("本次挖矿任务生成,推送给各个代理进行哈希难度计算", "blockNumber", work.Block.Number())
+
+}
+
+func (self *worker) checkNodeInAccounts(address string) bool {
+	var b = false
+	addresses := make([]string, 0) // return [] instead of nil if empty
+	for _, wallet := range self.eth.AccountManager().Wallets() {
+		for _, account := range wallet.Accounts() {
+			var buffer bytes.Buffer
+			buffer.WriteString(prefixAddress)
+			buffer.WriteString(hex.EncodeToString(account.Address[:]))
+			address2 := buffer.String()
+			addresses = append(addresses, address2)
+			if strings.EqualFold(address, address2) {
+				b = true
+			}
+		}
+	}
+	log.Info("currentAddresses:", addresses)
+	return b
 }
 
 func (self *worker) commitUncle(work *Work, uncle *types.Header) error {

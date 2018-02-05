@@ -19,6 +19,7 @@ package miner
 
 import (
 	"fmt"
+	"math/big"
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/accounts"
@@ -55,28 +56,57 @@ type Miner struct {
 
 	canStart    int32 // can start indicates whether we can start the mining operation
 	shouldStart int32 // should start indicates whether we should start after sync
+	PendingDposList []Delegate
+	CurrentDposList []Delegate //当前周期的代理列表
+	LastEndBlockHeight *big.Int //上轮结束的块高
+	DelegateTotalNumber int // 最大代理节点数量
+
 }
 
+type Delegate struct{
+	Address string
+	Login bool
+	Normal bool
+	Vote int64 //投票数
+	Nickname string // delegate name
+}
+
+
 func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine) *Miner {
+	var initDelegate = []Delegate{
+		Delegate{Address:"0x3de5a57f91acb34a8353b0035fd48dd48b0aecd6",Nickname:"node1"},
+		Delegate{Address:"0xef20b8401b5976634d23cd92ed73ff0787b5413a",Nickname:"node2"},
+		Delegate{Address:"0x0e3f7b85debcd11a85efcfb8b1c710f356446191",Nickname:"node3"},
+	}
 	miner := &Miner{
 		eth:      eth,
 		mux:      mux,
 		engine:   engine,
-		worker:   newWorker(config, engine, common.Address{}, eth, mux),
+		worker:   newWorker(config, engine, common.Address{}, eth, mux,initDelegate),
 		canStart: 1,
+		LastEndBlockHeight:common.Big0,
+		DelegateTotalNumber:3,
+		CurrentDposList:initDelegate,
+
 	}
+	miner.PendingDposList = initDelegate
+	miner.CurrentDposList = initDelegate
 	miner.Register(NewCpuAgent(eth.BlockChain(), engine))
 	go miner.update()
 
 	return miner
 }
 
+type CycleEvent struct{}
+
+
+
 // update keeps track of the downloader events. Please be aware that this is a one shot type of update loop.
 // It's entered once and as soon as `Done` or `Failed` has been broadcasted the events are unregistered and
 // the loop is exited. This to prevent a major security vuln where external parties can DOS you with blocks
 // and halt your mining operation for as long as the DOS continues.
 func (self *Miner) update() {
-	events := self.mux.Subscribe(downloader.StartEvent{}, downloader.DoneEvent{}, downloader.FailedEvent{})
+	events := self.mux.Subscribe(CycleEvent{},downloader.StartEvent{}, downloader.DoneEvent{}, downloader.FailedEvent{})
 out:
 	for ev := range events.Chan() {
 		switch ev.Data.(type) {
@@ -99,6 +129,16 @@ out:
 			events.Unsubscribe()
 			// stop immediately and ignore all further pending events
 			break out
+		case CycleEvent:
+			parentBlock := self.worker.chain.CurrentBlock()
+			log.Info("开始新的一轮dpos周期","lastBlock",parentBlock.Number())
+			var newDposList []Delegate
+			for i:=0;i < self.DelegateTotalNumber;i++{
+				newDposList = append(newDposList,self.PendingDposList[i])
+			}
+			self.CurrentDposList = newDposList
+			self.worker.CurrentDposList = newDposList
+			log.Info("新一轮的dpos代理节点产生完毕","info",self.CurrentDposList)
 		}
 	}
 }
