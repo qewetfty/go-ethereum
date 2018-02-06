@@ -666,8 +666,8 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 			go f.broadcastBlock(block, true)
 			// 更新代理列表
 			var mod big.Int
-			if mod.Rem(block.Number(),common.Big3) == common.Big0{
-				log.Info("当前dpos最后的一轮已经结束，开始重新洗牌","block",block)
+			if mod.Rem(block.Number(),common.Big3).Cmp(common.Big0) == 0{
+				log.Info("dpos|非产块节点","最后的一轮已经结束，开始重新洗牌|block",block)
 				f.mux.Post(miner.CycleEvent{})
 
 			}
@@ -691,7 +691,7 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 		// If import succeeded, broadcast the block
 		propAnnounceOutTimer.UpdateSince(block.ReceivedAt)
 		go f.broadcastBlock(block, false)
-		log.Info("当前节点插入块完毕，广播块hash",block.Hash())
+		log.Info("当前节点插入块完毕","广播块hash",block.Hash())
 
 		// Invoke the testing hook if needed
 		if f.importedHook != nil {

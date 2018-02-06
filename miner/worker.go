@@ -505,7 +505,7 @@ func (self *worker) commitNewWork() {
 
 	nodeIndex := dpos.GetCurrentProduceNode(work.Block.Number().Int64(), 3)
 	node := self.CurrentDposList[nodeIndex]
-	log.Info("生成该块的代理节点信息：", node,"block",work.Block)
+	log.Info("生成该块的代理节点信息：", "node",node,"block",work.Block)
 
 	if self.checkNodeInAccounts(node.Address) {
 		log.Info("轮到该节点进行产块","node",node,"work",work)
@@ -531,7 +531,7 @@ func (self *worker) checkNodeInAccounts(address string) bool {
 			}
 		}
 	}
-	log.Info("currentAddresses:", addresses)
+	log.Info("当前节点的地址列表","currentAddresses:", addresses)
 	return b
 }
 

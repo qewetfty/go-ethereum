@@ -19,9 +19,9 @@ package miner
 
 import (
 	"fmt"
+	"go-demo/dpos"
 	"math/big"
 	"sync/atomic"
-
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -84,13 +84,12 @@ func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine con
 		engine:   engine,
 		worker:   newWorker(config, engine, common.Address{}, eth, mux,initDelegate),
 		canStart: 1,
-		LastEndBlockHeight:common.Big0,
+		LastEndBlockHeight:eth.BlockChain().CurrentBlock().Number(),
 		DelegateTotalNumber:3,
 		CurrentDposList:initDelegate,
+		PendingDposList:initDelegate,
 
 	}
-	miner.PendingDposList = initDelegate
-	miner.CurrentDposList = initDelegate
 	miner.Register(NewCpuAgent(eth.BlockChain(), engine))
 	go miner.update()
 
@@ -138,7 +137,10 @@ out:
 			}
 			self.CurrentDposList = newDposList
 			self.worker.CurrentDposList = newDposList
-			log.Info("新一轮的dpos代理节点产生完毕","info",self.CurrentDposList)
+			self.LastEndBlockHeight = parentBlock.Number()
+			shuffle := dpos.Shuffle(parentBlock.Number().Int64()+1, self.DelegateTotalNumber)
+			log.Info("dpos新一轮的代理节点产生完毕","info",self.CurrentDposList)
+			log.Info("dpos新一轮代理产块索引顺序","indexList",shuffle)
 		}
 	}
 }

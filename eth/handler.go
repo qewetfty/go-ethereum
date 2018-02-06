@@ -627,7 +627,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		request.Block.ReceivedAt = msg.ReceivedAt
 		request.Block.ReceivedFrom = p
-		log.Info("NewBlockMsg", "收到广播新块到信息，加入到处理到队列中，记录块hash等待同步", "块信息：", request.Block)
+		log.Info("NewBlockMsg", "收到广播新块到信息，加入到处理到队列中，记录块hash等待同步", request.Block)
 
 		// Mark the peer as owning the block and schedule it for import
 		p.MarkBlock(request.Block.Hash())
@@ -648,7 +648,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			// scenario should easily be covered by the fetcher.
 			currentBlock := pm.blockchain.CurrentBlock()
 			if trueTD.Cmp(pm.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())) > 0 {
-				log.Info("NewBlockMsg", "落后相连节点，开始同步下载块", "远程节点信息：", p)
+				log.Info("NewBlockMsg", "落后相连节点，开始同步下载块远程|节点信息", p)
 				go pm.synchronise(p)
 			}
 		}
@@ -743,12 +743,12 @@ func (self *ProtocolManager) minedBroadcastLoop() {
 		switch ev := obj.Data.(type) {
 		case core.NewMinedBlockEvent:
 			// Add log
-			log.Info("接收到本地节点挖矿的广播事件", "块信息:", ev.Block)
+			log.Info("dpos|接收到本地节点挖矿的广播事件", "块信息:", ev.Block)
 			self.BroadcastBlock(ev.Block, true)  // First propagate block to peers
 			self.BroadcastBlock(ev.Block, false) // Only then announce to the rest
 			var mod big.Int
-			if mod.Rem(ev.Block.Number(),common.Big3) == common.Big0{
-				log.Info("当前dpos最后的一轮已经结束，开始重新洗牌","block",ev.Block)
+			if mod.Rem(ev.Block.Number(),common.Big3).Cmp(common.Big0) == 0{
+				log.Info("dpos","最后的一轮已经结束，开始重新洗牌",ev.Block)
                 self.eventMux.Post(miner.CycleEvent{})
 			}
 		}
