@@ -667,7 +667,7 @@ func (f *Fetcher) insert(peer string, block *types.Block) {
 			go f.broadcastBlock(block, true)
 			// 更新代理列表
 			var mod big.Int
-			if mod.Rem(block.Number(),big.NewInt(int64(miner.DelegateTotalNumber))).Cmp(common.Big0) == 0{
+			if mod.Rem(block.Number(),big.NewInt(int64(miner.DelegateCurrentNum))).Cmp(common.Big0) == 0{
 				log.Info("dpos|非产块节点","最后的一轮已经结束，开始重新洗牌|block",block)
 				f.mux.Post(miner.CycleEvent{})
 

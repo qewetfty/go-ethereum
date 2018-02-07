@@ -503,7 +503,7 @@ func (self *worker) commitNewWork() {
 		self.unconfirmed.Shift(work.Block.NumberU64() - 1)
 	}
 
-	nodeIndex := dpos.GetCurrentProduceNode(work.Block.Number().Int64(), DelegateTotalNumber)
+	nodeIndex := dpos.GetCurrentProduceNode(work.Block.Number().Int64(), DelegateCurrentNum)
 	node := self.CurrentDposList[nodeIndex]
 	log.Info("生成该块的代理节点信息：", "node",node,"block",work.Block)
 	produce,newCoinbase := self.checkNodeInAccounts(node.Address)

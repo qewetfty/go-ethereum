@@ -45,8 +45,10 @@ type Backend interface {
 }
 
 const (
-	DelegateTotalNumber = 3
+	DelegateMaxNumber = 101  // 最大产块代理个数
 )
+
+var DelegateCurrentNum int
 
 // Miner creates blocks and searches for proof-of-work values.
 type Miner struct {
@@ -71,9 +73,10 @@ type Miner struct {
 func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine) *Miner {
 	var initDelegate = []dpos.Delegate{
 		{Address: "0x70715a2a44255ddce2779d60ba95968b770fc759", Nickname: "node1"},
-		{Address: "0xfd48a829397a16b3bc6c319a06a47cd2ce6b3f58", Nickname: "node2"},
-		{Address: "0x612d018cc7db4137366a08075333a634c07e31be", Nickname: "node3"},
+		//{Address: "0xfd48a829397a16b3bc6c319a06a47cd2ce6b3f58", Nickname: "node2"},
+		//{Address: "0x612d018cc7db4137366a08075333a634c07e31be", Nickname: "node3"},
 	}
+	DelegateCurrentNum = len(initDelegate)
 	miner := &Miner{
 		eth:                 eth,
 		mux:                 mux,
@@ -81,7 +84,7 @@ func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine con
 		worker:              newWorker(config, engine, common.Address{}, eth, mux, initDelegate),
 		canStart:            1,
 		LastEndBlockHeight:  eth.BlockChain().CurrentBlock().Number(),
-		DelegateTotalNumber: DelegateTotalNumber,
+		DelegateTotalNumber: len(initDelegate),
 		CurrentDposList:     initDelegate,
 		PendingDposList:     initDelegate,
 	}
@@ -124,16 +127,22 @@ out:
 		case CycleEvent:
 			parentBlock := self.worker.chain.CurrentBlock()
 			log.Info("开始新的一轮dpos周期", "lastBlock", parentBlock.Number())
+			var currentProduceNodeNumber = len(self.PendingDposList)
+			if len(self.PendingDposList) > DelegateMaxNumber {
+				currentProduceNodeNumber = DelegateMaxNumber
+			}
 			var newDposList []dpos.Delegate
-			for i := 0; i < self.DelegateTotalNumber; i++ {
+			for i := 0; i < currentProduceNodeNumber; i++ {
 				newDposList = append(newDposList, self.PendingDposList[i])
 			}
 			self.CurrentDposList = newDposList
 			self.worker.CurrentDposList = newDposList
 			self.LastEndBlockHeight = parentBlock.Number()
+			self.DelegateTotalNumber = currentProduceNodeNumber
+			DelegateCurrentNum = currentProduceNodeNumber
 			shuffle := dpos.Shuffle(parentBlock.Number().Int64()+1, self.DelegateTotalNumber)
 			log.Info("dpos新一轮的代理节点产生完毕", "info", self.CurrentDposList)
-			log.Info("dpos新一轮代理产块索引顺序", "indexList", shuffle)
+			log.Info("dpos新一轮代理产块索引顺序", "indexList", shuffle,"节点总数：",currentProduceNodeNumber)
 		}
 	}
 }
