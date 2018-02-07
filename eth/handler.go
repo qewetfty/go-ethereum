@@ -747,7 +747,7 @@ func (self *ProtocolManager) minedBroadcastLoop() {
 			self.BroadcastBlock(ev.Block, true)  // First propagate block to peers
 			self.BroadcastBlock(ev.Block, false) // Only then announce to the rest
 			var mod big.Int
-			if mod.Rem(ev.Block.Number(),common.Big3).Cmp(common.Big0) == 0{
+			if mod.Rem(ev.Block.Number(),big.NewInt(int64(miner.DelegateTotalNumber))).Cmp(common.Big0) == 0{
 				log.Info("dpos","最后的一轮已经结束，开始重新洗牌",ev.Block)
                 self.eventMux.Post(miner.CycleEvent{})
 			}

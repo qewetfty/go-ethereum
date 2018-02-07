@@ -44,6 +44,10 @@ type Backend interface {
 	//DelegatePool() []dpos.Delegate // 代理池
 }
 
+const (
+	DelegateTotalNumber = 3
+)
+
 // Miner creates blocks and searches for proof-of-work values.
 type Miner struct {
 	mux *event.TypeMux
@@ -66,9 +70,9 @@ type Miner struct {
 
 func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine) *Miner {
 	var initDelegate = []dpos.Delegate{
-		{Address: "0x696f1d2260b8ec2aea8aae180b17b48328e9fce0", Nickname: "node1"},
-		{Address: "0x084ad63f5465b4f1fb3a9f99b733fea8efc1456a", Nickname: "node2"},
-		{Address: "0x5de1812c7a423db1247e9eb5be57ec3ff4762bd9", Nickname: "node3"},
+		{Address: "0x70715a2a44255ddce2779d60ba95968b770fc759", Nickname: "node1"},
+		{Address: "0xfd48a829397a16b3bc6c319a06a47cd2ce6b3f58", Nickname: "node2"},
+		{Address: "0x612d018cc7db4137366a08075333a634c07e31be", Nickname: "node3"},
 	}
 	miner := &Miner{
 		eth:                 eth,
@@ -77,7 +81,7 @@ func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine con
 		worker:              newWorker(config, engine, common.Address{}, eth, mux, initDelegate),
 		canStart:            1,
 		LastEndBlockHeight:  eth.BlockChain().CurrentBlock().Number(),
-		DelegateTotalNumber: 3,
+		DelegateTotalNumber: DelegateTotalNumber,
 		CurrentDposList:     initDelegate,
 		PendingDposList:     initDelegate,
 	}
