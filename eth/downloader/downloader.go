@@ -323,9 +323,13 @@ func (d *Downloader) Synchronise(id string, head common.Hash, td *big.Int, mode 
 	case errTimeout, errBadPeer, errStallingPeer,
 		errEmptyHeaderSet, errPeersUnavailable, errTooOld,
 		errInvalidAncestor, errInvalidChain:
-		log.Warn("Synchronisation failed, dropping peer", "peer", id, "err", err)
-		d.dropPeer(id)
-
+		if err != errInvalidChain {
+			log.Warn("Synchronisation failed, dropping peer", "peer", id, "err", err)
+			d.dropPeer(id)
+		} else {
+			err = nil
+			log.Info("dpos Synchronisation,ignore error")
+		}
 	default:
 		log.Warn("Synchronisation failed, retrying", "err", err)
 	}
@@ -652,12 +656,13 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64) (uint64, err
 				return 0, errEmptyHeaderSet
 			}
 			// Make sure the peer's reply conforms to the request
-			for i := 0; i < len(headers); i++ {
-				if number := headers[i].Number.Int64(); number != from+int64(i)*16 {
-					p.log.Warn("Head headers broke chain ordering", "index", i, "requested", from+int64(i)*16, "received", number)
-					return 0, errInvalidChain
-				}
-			}
+			// todo 注销掉，防止节点无法正常同步
+			//for i := 0; i < len(headers); i++ {
+			//	if number := headers[i].Number.Int64(); number != from+int64(i)*16 {
+			//		p.log.Warn("Head headers broke chain ordering", "index", i, "requested", from+int64(i)*16, "received", number)
+			//		return 0, errInvalidChain
+			//	}
+			//}
 			// Check if a common ancestor was found
 			finished = true
 			for i := len(headers) - 1; i >= 0; i-- {

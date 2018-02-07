@@ -131,10 +131,10 @@ type worker struct {
 	mining int32
 	atWork int32
 
-	CurrentDposList []Delegate //当前周期的代理列表
+	CurrentDposList []dpos.Delegate //当前周期的代理列表
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase common.Address, eth Backend, mux *event.TypeMux,delegate []Delegate) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase common.Address, eth Backend, mux *event.TypeMux,delegate []dpos.Delegate) *worker {
 	worker := &worker{
 		config:         config,
 		engine:         engine,
@@ -503,12 +503,14 @@ func (self *worker) commitNewWork() {
 		self.unconfirmed.Shift(work.Block.NumberU64() - 1)
 	}
 
-	nodeIndex := dpos.GetCurrentProduceNode(work.Block.Number().Int64(), 3)
+	nodeIndex := dpos.GetCurrentProduceNode(work.Block.Number().Int64(), DelegateCurrentNum)
 	node := self.CurrentDposList[nodeIndex]
-	log.Info("生成该块的代理节点信息：", node,"block",work.Block)
-
-	if self.checkNodeInAccounts(node.Address) {
+	log.Info("生成该块的代理节点信息：", "node",node,"block",work.Block)
+	produce,newCoinbase := self.checkNodeInAccounts(node.Address)
+	if produce {
 		log.Info("轮到该节点进行产块","node",node,"work",work)
+		// 将该代理地址设置为产块地址，接收产块奖励
+		self.coinbase = newCoinbase
 		self.push(work)
 	}
 	// Add log
@@ -516,8 +518,9 @@ func (self *worker) commitNewWork() {
 
 }
 
-func (self *worker) checkNodeInAccounts(address string) bool {
+func (self *worker) checkNodeInAccounts(address string) (bool,common.Address) {
 	var b = false
+	var coinbase common.Address
 	addresses := make([]string, 0) // return [] instead of nil if empty
 	for _, wallet := range self.eth.AccountManager().Wallets() {
 		for _, account := range wallet.Accounts() {
@@ -527,12 +530,13 @@ func (self *worker) checkNodeInAccounts(address string) bool {
 			address2 := buffer.String()
 			addresses = append(addresses, address2)
 			if strings.EqualFold(address, address2) {
+				coinbase = account.Address
 				b = true
 			}
 		}
 	}
-	log.Info("currentAddresses:", addresses)
-	return b
+	log.Info("当前节点的地址列表","currentAddresses:", addresses)
+	return b,coinbase
 }
 
 func (self *worker) commitUncle(work *Work, uncle *types.Header) error {

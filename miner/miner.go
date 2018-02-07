@@ -19,9 +19,6 @@ package miner
 
 import (
 	"fmt"
-	"math/big"
-	"sync/atomic"
-
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -33,6 +30,9 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"math/big"
+	"sync/atomic"
+	"github.com/ethereum/go-ethereum/consensus/dpos"
 )
 
 // Backend wraps all methods required for mining.
@@ -41,7 +41,14 @@ type Backend interface {
 	BlockChain() *core.BlockChain
 	TxPool() *core.TxPool
 	ChainDb() ethdb.Database
+	//DelegatePool() []dpos.Delegate // 代理池
 }
+
+const (
+	DelegateMaxNumber = 101  // 最大产块代理个数
+)
+
+var DelegateCurrentNum int
 
 // Miner creates blocks and searches for proof-of-work values.
 type Miner struct {
@@ -54,43 +61,33 @@ type Miner struct {
 	eth      Backend
 	engine   consensus.Engine
 
-	canStart    int32 // can start indicates whether we can start the mining operation
-	shouldStart int32 // should start indicates whether we should start after sync
-	PendingDposList []Delegate
-	CurrentDposList []Delegate //当前周期的代理列表
-	LastEndBlockHeight *big.Int //上轮结束的块高
-	DelegateTotalNumber int // 最大代理节点数量
+	canStart            int32 // can start indicates whether we can start the mining operation
+	shouldStart         int32 // should start indicates whether we should start after sync
+	PendingDposList     []dpos.Delegate
+	CurrentDposList     []dpos.Delegate //当前周期的代理列表
+	LastEndBlockHeight  *big.Int        //上轮结束的块高
+	DelegateTotalNumber int             // 最大代理节点数量
 
 }
-
-type Delegate struct{
-	Address string
-	Login bool
-	Normal bool
-	Vote int64 //投票数
-	Nickname string // delegate name
-}
-
 
 func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine) *Miner {
-	var initDelegate = []Delegate{
-		Delegate{Address:"0x3de5a57f91acb34a8353b0035fd48dd48b0aecd6",Nickname:"node1"},
-		Delegate{Address:"0xef20b8401b5976634d23cd92ed73ff0787b5413a",Nickname:"node2"},
-		Delegate{Address:"0x0e3f7b85debcd11a85efcfb8b1c710f356446191",Nickname:"node3"},
+	var initDelegate = []dpos.Delegate{
+		{Address: "0x70715a2a44255ddce2779d60ba95968b770fc759", Nickname: "node1"},
+		//{Address: "0xfd48a829397a16b3bc6c319a06a47cd2ce6b3f58", Nickname: "node2"},
+		//{Address: "0x612d018cc7db4137366a08075333a634c07e31be", Nickname: "node3"},
 	}
+	DelegateCurrentNum = len(initDelegate)
 	miner := &Miner{
-		eth:      eth,
-		mux:      mux,
-		engine:   engine,
-		worker:   newWorker(config, engine, common.Address{}, eth, mux,initDelegate),
-		canStart: 1,
-		LastEndBlockHeight:common.Big0,
-		DelegateTotalNumber:3,
-		CurrentDposList:initDelegate,
-
+		eth:                 eth,
+		mux:                 mux,
+		engine:              engine,
+		worker:              newWorker(config, engine, common.Address{}, eth, mux, initDelegate),
+		canStart:            1,
+		LastEndBlockHeight:  eth.BlockChain().CurrentBlock().Number(),
+		DelegateTotalNumber: len(initDelegate),
+		CurrentDposList:     initDelegate,
+		PendingDposList:     initDelegate,
 	}
-	miner.PendingDposList = initDelegate
-	miner.CurrentDposList = initDelegate
 	miner.Register(NewCpuAgent(eth.BlockChain(), engine))
 	go miner.update()
 
@@ -99,14 +96,12 @@ func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine con
 
 type CycleEvent struct{}
 
-
-
 // update keeps track of the downloader events. Please be aware that this is a one shot type of update loop.
 // It's entered once and as soon as `Done` or `Failed` has been broadcasted the events are unregistered and
 // the loop is exited. This to prevent a major security vuln where external parties can DOS you with blocks
 // and halt your mining operation for as long as the DOS continues.
 func (self *Miner) update() {
-	events := self.mux.Subscribe(CycleEvent{},downloader.StartEvent{}, downloader.DoneEvent{}, downloader.FailedEvent{})
+	events := self.mux.Subscribe(CycleEvent{}, downloader.StartEvent{}, downloader.DoneEvent{}, downloader.FailedEvent{})
 out:
 	for ev := range events.Chan() {
 		switch ev.Data.(type) {
@@ -131,14 +126,23 @@ out:
 			break out
 		case CycleEvent:
 			parentBlock := self.worker.chain.CurrentBlock()
-			log.Info("开始新的一轮dpos周期","lastBlock",parentBlock.Number())
-			var newDposList []Delegate
-			for i:=0;i < self.DelegateTotalNumber;i++{
-				newDposList = append(newDposList,self.PendingDposList[i])
+			log.Info("开始新的一轮dpos周期", "lastBlock", parentBlock.Number())
+			var currentProduceNodeNumber = len(self.PendingDposList)
+			if len(self.PendingDposList) > DelegateMaxNumber {
+				currentProduceNodeNumber = DelegateMaxNumber
+			}
+			var newDposList []dpos.Delegate
+			for i := 0; i < currentProduceNodeNumber; i++ {
+				newDposList = append(newDposList, self.PendingDposList[i])
 			}
 			self.CurrentDposList = newDposList
 			self.worker.CurrentDposList = newDposList
-			log.Info("新一轮的dpos代理节点产生完毕","info",self.CurrentDposList)
+			self.LastEndBlockHeight = parentBlock.Number()
+			self.DelegateTotalNumber = currentProduceNodeNumber
+			DelegateCurrentNum = currentProduceNodeNumber
+			shuffle := dpos.Shuffle(parentBlock.Number().Int64()+1, self.DelegateTotalNumber)
+			log.Info("dpos新一轮的代理节点产生完毕", "info", self.CurrentDposList)
+			log.Info("dpos新一轮代理产块索引顺序", "indexList", shuffle,"节点总数：",currentProduceNodeNumber)
 		}
 	}
 }
@@ -157,7 +161,7 @@ func (self *Miner) Start(coinbase common.Address) {
 	log.Info("Starting mining operation")
 	self.worker.start()
 	// Add log
-	log.Info("各个cpu代理挖矿工作启动完毕","代理数量:",len(self.worker.agents))
+	log.Info("各个cpu代理挖矿工作启动完毕", "代理数量:", len(self.worker.agents))
 	self.worker.commitNewWork()
 }
 
