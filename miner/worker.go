@@ -131,10 +131,10 @@ type worker struct {
 	mining int32
 	atWork int32
 
-	CurrentDposList []Delegate //当前周期的代理列表
+	CurrentDposList []dpos.Delegate //当前周期的代理列表
 }
 
-func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase common.Address, eth Backend, mux *event.TypeMux,delegate []Delegate) *worker {
+func newWorker(config *params.ChainConfig, engine consensus.Engine, coinbase common.Address, eth Backend, mux *event.TypeMux,delegate []dpos.Delegate) *worker {
 	worker := &worker{
 		config:         config,
 		engine:         engine,
