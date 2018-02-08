@@ -15,3 +15,8 @@
 
 # idea
 *.idea
+
+# golang dep
+Gopkg.lock
+Gopkg.toml
+vendor/

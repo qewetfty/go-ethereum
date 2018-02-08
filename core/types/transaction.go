@@ -69,6 +69,7 @@ type txdata struct {
 
 	// This is only used when marshaling to JSON.
 	Hash *common.Hash `json:"hash" rlp:"-"`
+	Action uint `json:"action" gencodec:"required"` // 额外动作默认0,1-代理注册
 }
 
 type txdataMarshaling struct {
@@ -82,15 +83,15 @@ type txdataMarshaling struct {
 	S            *hexutil.Big
 }
 
-func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
-	return newTransaction(nonce, &to, amount, gasLimit, gasPrice, data)
+func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte,action *uint) *Transaction {
+	return newTransaction(nonce, &to, amount, gasLimit, gasPrice, data,action)
 }
 
 func NewContractCreation(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
-	return newTransaction(nonce, nil, amount, gasLimit, gasPrice, data)
+	return newTransaction(nonce, nil, amount, gasLimit, gasPrice, data,nil)
 }
 
-func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
+func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte,action *uint) *Transaction {
 	if len(data) > 0 {
 		data = common.CopyBytes(data)
 	}
@@ -104,6 +105,9 @@ func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit 
 		V:            new(big.Int),
 		R:            new(big.Int),
 		S:            new(big.Int),
+	}
+	if action != nil {
+		d.Action = *action
 	}
 	if amount != nil {
 		d.Amount.Set(amount)
@@ -300,6 +304,7 @@ func (tx *Transaction) String() string {
 		tx.data.Recipient == nil,
 		from,
 		to,
+			
 		tx.data.AccountNonce,
 		tx.data.Price,
 		tx.data.GasLimit,
