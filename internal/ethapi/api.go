@@ -42,6 +42,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
+
 )
 
 const (
@@ -1107,6 +1108,7 @@ type SendTxArgs struct {
 	// newer name and should be preferred by clients.
 	Data  *hexutil.Bytes `json:"data"`
 	Input *hexutil.Bytes `json:"input"`
+	Action uint `json:"action"`
 }
 
 // setDefaults is a helper function that fills in default values for unspecified tx fields.
@@ -1148,7 +1150,7 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 	if args.To == nil {
 		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
 	}
-	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
+	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input,&args.Action)
 }
 
 // submitTransaction is a helper function that submits tx to txPool and logs a message.
@@ -1167,8 +1169,10 @@ func submitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 		log.Info("提交合约创建到交易池","fullhash", tx.Hash().Hex(), "contract", addr.Hex())
 		log.Info("Submitted contract creation", "fullhash", tx.Hash().Hex(), "contract", addr.Hex())
 	} else {
+		log.Info("Submitted transaction","trx",tx)
 		log.Info("Submitted transaction", "fullhash", tx.Hash().Hex(), "recipient", tx.To())
 		log.Info("提交交易到交易池中", "fullhash", tx.Hash().Hex(), "recipient", tx.To())
+
 	}
 	return tx.Hash(), nil
 }
