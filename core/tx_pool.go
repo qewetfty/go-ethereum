@@ -535,6 +535,10 @@ func (pool *TxPool) Pending() (map[common.Address]types.Transactions, error) {
 	return pending, nil
 }
 
+func (pool *TxPool) PoolSigner() types.Signer  {
+	return pool.signer
+}
+
 // local retrieves all currently known local transactions, groupped by origin
 // account and sorted by nonce. The returned transaction set is a copy and can be
 // freely modified by calling code.

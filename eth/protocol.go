@@ -76,6 +76,7 @@ const (
 	ErrNoStatusMsg
 	ErrExtraStatusMsg
 	ErrSuspendedPeer
+	ErrRepeatAgent
 )
 
 func (e errCode) String() string {
@@ -106,6 +107,8 @@ type txPool interface {
 	// SubscribeTxPreEvent should return an event subscription of
 	// TxPreEvent and send events to the given channel.
 	SubscribeTxPreEvent(chan<- core.TxPreEvent) event.Subscription
+
+	PoolSigner() types.Signer
 }
 
 // statusData is the network packet for the status message.

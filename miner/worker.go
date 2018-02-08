@@ -53,7 +53,7 @@ const (
 	// chainSideChanSize is the size of channel listening to ChainSideEvent.
 	chainSideChanSize = 10
 
-	prefixAddress = "0x"
+	PrefixAddress = "0x"
 )
 
 // Agent can register themself with the worker
@@ -525,7 +525,7 @@ func (self *worker) checkNodeInAccounts(address string) (bool,common.Address) {
 	for _, wallet := range self.eth.AccountManager().Wallets() {
 		for _, account := range wallet.Accounts() {
 			var buffer bytes.Buffer
-			buffer.WriteString(prefixAddress)
+			buffer.WriteString(PrefixAddress)
 			buffer.WriteString(hex.EncodeToString(account.Address[:]))
 			address2 := buffer.String()
 			addresses = append(addresses, address2)

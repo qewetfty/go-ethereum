@@ -33,6 +33,7 @@ import (
 	"math/big"
 	"sync/atomic"
 	"github.com/ethereum/go-ethereum/consensus/dpos"
+
 )
 
 // Backend wraps all methods required for mining.
@@ -72,9 +73,9 @@ type Miner struct {
 
 func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine) *Miner {
 	var initDelegate = []dpos.Delegate{
-		{Address: "0x70715a2a44255ddce2779d60ba95968b770fc759", Nickname: "node1"},
+		//{Address: "0x70715a2a44255ddce2779d60ba95968b770fc759", Nickname: "node1"},
 		//{Address: "0xfd48a829397a16b3bc6c319a06a47cd2ce6b3f58", Nickname: "node2"},
-		//{Address: "0x612d018cc7db4137366a08075333a634c07e31be", Nickname: "node3"},
+		{Address: "0x612d018cc7db4137366a08075333a634c07e31be", Nickname: "node3"},
 	}
 	DelegateCurrentNum = len(initDelegate)
 	miner := &Miner{
@@ -95,13 +96,17 @@ func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine con
 }
 
 type CycleEvent struct{}
+type RegisterEvent struct {
+	Deles []dpos.Delegate
+}
+
 
 // update keeps track of the downloader events. Please be aware that this is a one shot type of update loop.
 // It's entered once and as soon as `Done` or `Failed` has been broadcasted the events are unregistered and
 // the loop is exited. This to prevent a major security vuln where external parties can DOS you with blocks
 // and halt your mining operation for as long as the DOS continues.
 func (self *Miner) update() {
-	events := self.mux.Subscribe(CycleEvent{}, downloader.StartEvent{}, downloader.DoneEvent{}, downloader.FailedEvent{})
+	events := self.mux.Subscribe(RegisterEvent{},CycleEvent{}, downloader.StartEvent{}, downloader.DoneEvent{}, downloader.FailedEvent{})
 out:
 	for ev := range events.Chan() {
 		switch ev.Data.(type) {
@@ -143,7 +148,13 @@ out:
 			shuffle := dpos.Shuffle(parentBlock.Number().Int64()+1, self.DelegateTotalNumber)
 			log.Info("dpos新一轮的代理节点产生完毕", "info", self.CurrentDposList)
 			log.Info("dpos新一轮代理产块索引顺序", "indexList", shuffle,"节点总数：",currentProduceNodeNumber)
+		case RegisterEvent:
+			delegates := ev.Data.(RegisterEvent).Deles
+			log.Info("dpos|收到新的注册代理","delegates",delegates)
+			self.PendingDposList = append(self.PendingDposList,delegates...)
+			log.Info("dpos|代理","当前代理总数",len(self.PendingDposList))
 		}
+		
 	}
 }
 
