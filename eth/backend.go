@@ -48,6 +48,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
+	
 )
 
 type LesServer interface {
@@ -92,6 +93,8 @@ type Ethereum struct {
 	netRPCService *ethapi.PublicNetAPI
 
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
+
+	
 }
 
 func (s *Ethereum) AddLesServer(ls LesServer) {
@@ -168,6 +171,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	}
 	eth.miner = miner.New(eth, eth.chainConfig, eth.EventMux(), eth.engine)
 	eth.miner.SetExtra(makeExtraData(config.ExtraData))
+	eth.protocolManager.PendingDposList = &eth.miner.PendingDposList 
 
 	eth.ApiBackend = &EthApiBackend{eth, nil}
 	gpoParams := config.GPO

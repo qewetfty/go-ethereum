@@ -124,13 +124,17 @@ func (p *testTxPool) Pending() (map[common.Address]types.Transactions, error) {
 	return batches, nil
 }
 
+func (p *testTxPool) PoolSigner() types.Signer  {
+	return p.PoolSigner()
+}
+
 func (p *testTxPool) SubscribeTxPreEvent(ch chan<- core.TxPreEvent) event.Subscription {
 	return p.txFeed.Subscribe(ch)
 }
 
 // newTestTransaction create a new dummy transaction.
 func newTestTransaction(from *ecdsa.PrivateKey, nonce uint64, datasize int) *types.Transaction {
-	tx := types.NewTransaction(nonce, common.Address{}, big.NewInt(0), 100000, big.NewInt(0), make([]byte, datasize))
+	tx := types.NewTransaction(nonce, common.Address{}, big.NewInt(0), 100000, big.NewInt(0), make([]byte, datasize),nil)
 	tx, _ = types.SignTx(tx, types.HomesteadSigner{}, from)
 	return tx
 }

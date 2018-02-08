@@ -41,6 +41,11 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+
+	"bytes"
+	"encoding/hex"
+	"github.com/ethereum/go-ethereum/consensus/dpos"
+	"strings"
 )
 
 const (
@@ -96,6 +101,9 @@ type ProtocolManager struct {
 	// wait group is used for graceful shutdowns during downloading
 	// and processing
 	wg sync.WaitGroup
+
+	PendingDposList *[]dpos.Delegate
+	mutex sync.Mutex
 }
 
 // NewProtocolManager returns a new ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
@@ -179,7 +187,7 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		atomic.StoreUint32(&manager.acceptTxs, 1) // Mark initial sync done on any fetcher import
 		return manager.blockchain.InsertChain(blocks)
 	}
-	manager.fetcher = fetcher.New(blockchain.GetBlockByHash, validator, manager.BroadcastBlock, heighter, inserter, manager.removePeer,mux)
+	manager.fetcher = fetcher.New(blockchain.GetBlockByHash, validator, manager.BroadcastBlock, heighter, inserter, manager.removePeer, mux)
 
 	return manager, nil
 }
@@ -654,7 +662,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 
 	case msg.Code == TxMsg:
-		log.Info("收到广播出来的交易","message",msg)
+		log.Info("收到广播出来的交易", "message", msg)
 		// Transactions arrived, make sure we have a valid and fresh chain to handle them
 		if atomic.LoadUint32(&pm.acceptTxs) == 0 {
 			break
@@ -665,13 +673,28 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 		log.Info("收到广播出来的交易", "交易列表信息", txs)
+		var deles []dpos.Delegate
 		for i, tx := range txs {
 			// Validate and mark the remote transaction
 			if tx == nil {
 				return errResp(ErrDecode, "transaction %d is nil", i)
 			}
+			if tx.TxDataAction() == 1 { //注册代理
+				from, _ := types.Sender(pm.txpool.PoolSigner(), tx)
+				isRegister,address :=pm.checkIsRegister(from)
+				log.Info("dpos|isRegister",isRegister,"address",address)
+				if isRegister {
+					return errResp(ErrRepeatAgent, "transaction %d is 重复注册代理", i)
+				}
+				deles = append(deles,dpos.Delegate{Address:address})
+
+			}
 			// 标记成已知的交易，确保不会重复
 			p.MarkTransaction(tx.Hash())
+
+		}
+		if len(deles) > 0 {
+			go pm.eventMux.Post(miner.RegisterEvent{Deles:deles})
 		}
 		pm.txpool.AddRemotes(txs)
 		log.Info("将远程广播交易加入到当前节点的交易池完毕")
@@ -680,6 +703,24 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}
 	return nil
+}
+
+func (pm *ProtocolManager) checkIsRegister(address common.Address) (bool,string) {
+	var buffer bytes.Buffer
+	var isRegister bool
+	buffer.WriteString(miner.PrefixAddress)
+	buffer.WriteString(hex.EncodeToString(address[:]))
+	addressString := buffer.String()
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
+	for _, del := range *pm.PendingDposList {
+		log.Info("dpos|checkIsRegister","address",addressString,"del",del)
+		if strings.EqualFold(addressString, del.Address) {
+			isRegister = true
+			break
+		}
+	}
+	return isRegister,addressString
 }
 
 // BroadcastBlock will either propagate a block to a subset of it's peers, or
@@ -725,6 +766,7 @@ func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 // BroadcastTx will propagate a transaction to all peers which are not known to
 // already have the given transaction.
 func (pm *ProtocolManager) BroadcastTx(hash common.Hash, tx *types.Transaction) {
+	pm.checkAndPushRegisterAgent(tx)
 	// Broadcast transaction to a batch of peers not knowing about it
 	// 获取到不知道该笔交易到节点列表
 	peers := pm.peers.PeersWithoutTx(hash)
@@ -734,6 +776,18 @@ func (pm *ProtocolManager) BroadcastTx(hash common.Hash, tx *types.Transaction) 
 		peer.SendTransactions(types.Transactions{tx})
 	}
 	log.Trace("Broadcast transaction", "hash", hash, "recipients", len(peers))
+}
+
+// 本地的交易判定是不是注册代理，是的话则加入
+func (pm *ProtocolManager) checkAndPushRegisterAgent(tx *types.Transaction)  {
+	from, _ := types.Sender(pm.txpool.PoolSigner(), tx)
+	var deles []dpos.Delegate
+	isRegister,address :=pm.checkIsRegister(from)
+	if !isRegister {
+		deles = append(deles,dpos.Delegate{Address:address})
+		pm.eventMux.Post(miner.RegisterEvent{deles})
+		log.Info("新增代理发送到管道完毕","address",address)
+	}
 }
 
 // Mined broadcast loop
@@ -746,10 +800,11 @@ func (self *ProtocolManager) minedBroadcastLoop() {
 			log.Info("dpos|接收到本地节点挖矿的广播事件", "块信息:", ev.Block)
 			self.BroadcastBlock(ev.Block, true)  // First propagate block to peers
 			self.BroadcastBlock(ev.Block, false) // Only then announce to the rest
+
 			var mod big.Int
-			if mod.Rem(ev.Block.Number(),big.NewInt(int64(miner.DelegateCurrentNum))).Cmp(common.Big0) == 0{
-				log.Info("dpos","最后的一轮已经结束，开始重新洗牌",ev.Block)
-                self.eventMux.Post(miner.CycleEvent{})
+			if mod.Rem(ev.Block.Number(), big.NewInt(int64(miner.DelegateCurrentNum))).Cmp(common.Big0) == 0 {
+				log.Info("dpos", "最后的一轮已经结束，开始重新洗牌", ev.Block)
+				self.eventMux.Post(miner.CycleEvent{})
 			}
 		}
 	}
@@ -762,6 +817,8 @@ func (self *ProtocolManager) txBroadcastLoop() {
 			// Add log
 			log.Info("交易事件写入到管道中，准备广播", "交易信息：", event.Tx)
 			self.BroadcastTx(event.Tx.Hash(), event.Tx)
+
+
 
 		// Err() channel will be closed when unsubscribing.
 		case <-self.txSub.Err():

@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rlp"
 	"gopkg.in/fatih/set.v0"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -136,6 +137,7 @@ func (p *peer) SendTransactions(txs types.Transactions) error {
 	for _, tx := range txs {
 		p.knownTxs.Add(tx.Hash())
 	}
+	log.Info("广播交易","广播交易完毕|trx:",txs)
 	return p2p.Send(p.rw, TxMsg, txs)
 }
 
