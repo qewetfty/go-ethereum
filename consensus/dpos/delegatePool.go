@@ -5,8 +5,14 @@ import (
 	"sort"
 )
 
+const (
+	register = 0
+	addVote  = 1
+	subVote  = 2
+)
+
 type DelegatePoll struct {
-	votesChan    chan Candidate
+	votesChan    chan CandidateWrapper
 	newRoundChan chan struct{}
 	votes        map[string]int64
 	top          []Candidate // 当选的候选人列表
@@ -19,12 +25,17 @@ type Candidate struct {
 	votes   int64
 }
 
+type CandidateWrapper struct {
+	candidate Candidate
+	action    int // 0-注册,1-增加票数,2-减票
+}
+
 func NewPoll(maxElected int) *DelegatePoll {
 	votes := make(map[string]int64)
 	top := make([]Candidate, 0, maxElected)
 
 	poll := &DelegatePoll{
-		votesChan:    make(chan Candidate),
+		votesChan:    make(chan CandidateWrapper),
 		newRoundChan: make(chan struct{}),
 		votes:        votes,
 		top:          top,
@@ -38,19 +49,30 @@ func NewPoll(maxElected int) *DelegatePoll {
 func (p *DelegatePoll) startListening() {
 	for {
 		select {
-		case candidate := <-p.votesChan:
-			currentValue := p.votes[candidate.address]
-			//if currentValue == nil {
-			//	currentValue = common0
-			//}
+		case candidateWrapper := <-p.votesChan:
+			candidate := candidateWrapper.candidate
+			switch candidateWrapper.action {
+			case register:
+				p.votes[candidate.address] = 0
+				fmt.Printf("%s 注册代理成功\n", candidate.address)
+			case addVote:
+				if _, ok := p.votes[candidate.address]; !ok {
+					fmt.Printf("%s 未注册|投票失败\n", candidate.address)
+				} else {
+					currentValue := p.votes[candidate.address]
+					nowVoteNumber := currentValue + candidate.votes
+					p.votes[candidate.address] = nowVoteNumber
 
-			nowVoteNumber := currentValue + candidate.votes
-			p.votes[candidate.address] = nowVoteNumber
+					p.insert(Candidate{candidate.address, nowVoteNumber})
 
-			p.insert(Candidate{candidate.address, nowVoteNumber})
+					fmt.Printf("-> %s 增加 %d 票,现在票数 %d;当选列表:%v\n", candidate.address, candidate.votes, nowVoteNumber, p.top)
+					fmt.Printf("-> 候选池列表:%v\n", p.votes)
+				}
 
-			fmt.Printf("-> %s 增加 %d 票,现在票数 %d;当选列表:%v\n", candidate.address, candidate.votes, nowVoteNumber, p.top)
-			fmt.Printf("-> 候选池列表:%v\n", p.votes)
+			default:
+				fmt.Printf("error action %s \n", candidateWrapper.action)
+			}
+
 			//fmt.Printf("-> %s = %d ; %v\n", candidate.address, nowVoteNumber, p.top)
 		case <-p.newRoundChan:
 			// TODO consider clearing by range deletion to decrease GC load
@@ -120,7 +142,7 @@ func (p *DelegatePoll) IsElected(candidate string) (result bool) {
 	return votesN-votes >= 0
 }
 
-func (p *DelegatePoll) SubmitVoteFor(candidate Candidate) (err error) {
+func (p *DelegatePoll) SubmitVoteFor(candidate CandidateWrapper) (err error) {
 	// todo
 	// if no active round err = ...;return
 	p.votesChan <- candidate

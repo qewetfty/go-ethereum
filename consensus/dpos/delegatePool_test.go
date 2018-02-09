@@ -10,21 +10,31 @@ import (
 func TestPoll_IsElected(t *testing.T) {
 	poll := NewPoll(5)
 
-	winners := map[Candidate]int{
-		{address: "winner", votes: 3}:  20,
-		{address: "second", votes: 6}:  19,
-		{address: "thirdd", votes: 2}:  17,
-		{address: "forthh", votes: 5}:  11,
-		{address: "fifthh", votes: 10}: 10,
+	register := []CandidateWrapper{
+		{Candidate{address: "winner"}, 0},
+		{Candidate{address: "second"}, 0},
 	}
-	//winners := map[string]int{"winner": 20, "second": 19, "thirdd": 17, "forthh": 11, "fifthh": 10}
-	//losers := map[string]int{"loser1": 1, "loser2": 9, "loser3": 5}
 
-	losers := map[Candidate]int{
-		{address: "loser1", votes: 1}: 1,
-		{address: "loser2", votes: 6}: 9,
-		{address: "loser3", votes: 8}: 5,
+	for _, candidate := range register {
+		poll.SubmitVoteFor(candidate)
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	winners := map[CandidateWrapper]int{
+		{Candidate{address: "winner", votes: 3}, 1}:  20,
+		{Candidate{address: "second", votes: 6}, 1}:  19,
+		{Candidate{address: "thirdd", votes: 2}, 1}:  17,
+		{Candidate{address: "forthh", votes: 5}, 1}:  11,
+		{Candidate{address: "fifthh", votes: 10}, 1}: 10,
+	}
+
+	losers := map[CandidateWrapper]int{
+		{Candidate{address: "loser1", votes: 1}, 1}: 1,
+		{Candidate{address: "loser2", votes: 6}, 1}: 9,
+		{Candidate{address: "loser3", votes: 8}, 1}: 5,
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(8)
 
@@ -38,22 +48,20 @@ func TestPoll_IsElected(t *testing.T) {
 	wg.Wait()
 	time.Sleep(100 * time.Millisecond)
 
-	for candidate := range winners {
-		if !poll.IsElected(candidate.address) {
+	for candidateWrapper := range winners {
+		if !poll.IsElected(candidateWrapper.candidate.address) {
 			// t.Fatalf("%s not elected: %v\n", candidate, poll.top)
-			fmt.Printf("%s not elected: %v\n", candidate, poll.top)
+			fmt.Printf("%s not elected: %v\n", candidateWrapper.candidate, poll.top)
 		}
 	}
 
-	for candidate := range losers {
-		if poll.IsElected(candidate.address) {
+	for candidateWrapper := range losers {
+		if poll.IsElected(candidateWrapper.candidate.address) {
 			// t.Fatalf("%s is elected: %v\n", candidate, poll.top)
-			fmt.Printf("%s is elected: %v\n", candidate, poll.top)
+			fmt.Printf("%s is elected: %v\n", candidateWrapper.candidate, poll.top)
 		}
 	}
-
 	poll.StartNewRound()
-
 	time.Sleep(100 * time.Millisecond)
 
 	votesLen := len(poll.votes)
@@ -65,7 +73,7 @@ func TestPoll_IsElected(t *testing.T) {
 
 }
 
-func (p *DelegatePoll) voteForNTimes(candidate Candidate, n int, wg *sync.WaitGroup) {
+func (p *DelegatePoll) voteForNTimes(candidate CandidateWrapper, n int, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for i := 0; i < n; i++ {
 		go p.SubmitVoteFor(candidate)
