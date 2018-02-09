@@ -6,9 +6,9 @@ import (
 )
 
 const (
-	register = 0
-	addVote  = 1
-	subVote  = 2
+	register = iota
+	addVote
+	subVote
 )
 
 type DelegatePoll struct {
