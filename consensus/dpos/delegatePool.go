@@ -53,8 +53,13 @@ func (p *DelegatePoll) startListening() {
 			candidate := candidateWrapper.candidate
 			switch candidateWrapper.action {
 			case register:
-				p.votes[candidate.address] = 0
-				fmt.Printf("%s 注册代理成功\n", candidate.address)
+				if _, ok := p.votes[candidate.address]; !ok {
+					p.votes[candidate.address] = 0
+					fmt.Printf("%s 注册代理成功\n", candidate.address)
+				} else {
+					fmt.Printf("%s 代理已注册,不能重复注册\n", candidate.address)
+				}
+
 			case addVote:
 				if _, ok := p.votes[candidate.address]; !ok {
 					fmt.Printf("%s 未注册|投票失败\n", candidate.address)
@@ -66,6 +71,21 @@ func (p *DelegatePoll) startListening() {
 					p.insert(Candidate{candidate.address, nowVoteNumber})
 
 					fmt.Printf("-> %s 增加 %d 票,现在票数 %d;当选列表:%v\n", candidate.address, candidate.votes, nowVoteNumber, p.top)
+					fmt.Printf("-> 候选池列表:%v\n", p.votes)
+				}
+			case subVote:
+				if _, ok := p.votes[candidate.address]; !ok {
+					fmt.Printf("%s 未注册|减票失败\n", candidate.address)
+				} else {
+					currentValue := p.votes[candidate.address]
+					nowVoteNumber := currentValue - candidate.votes
+					if nowVoteNumber < 0 {
+						nowVoteNumber = 0
+					}
+
+					p.insert(Candidate{candidate.address, nowVoteNumber})
+
+					fmt.Printf("-> %s 减去 %d 票,现在票数 %d;当选列表:%v\n", candidate.address, candidate.votes, nowVoteNumber, p.top)
 					fmt.Printf("-> 候选池列表:%v\n", p.votes)
 				}
 

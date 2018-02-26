@@ -991,7 +991,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks) (int, []interface{}, []*ty
 
 			coalescedLogs = append(coalescedLogs, logs...)
 			blockInsertTimer.UpdateSince(bstart)
-			events = append(events, ChainEvent{block, block.Hash(), logs})
+			events = append(events, ChainEvent{block,
+			block.Hash(), logs})
 			lastCanon = block
 
 		case SideStatTy:
