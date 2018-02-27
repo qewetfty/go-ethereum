@@ -116,7 +116,6 @@ type Fetcher struct {
 	blockFilter  chan chan []*types.Block
 	headerFilter chan chan *headerFilterTask
 	bodyFilter   chan chan *bodyFilterTask
-
 	done chan common.Hash
 	quit chan struct{}
 

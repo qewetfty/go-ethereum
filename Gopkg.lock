@@ -25,26 +25,26 @@
     "autorest/azure",
     "autorest/date"
   ]
-  revision = "fc3b03a2d2d1f43fad3007038bd16f044f870722"
-  version = "v9.10.0"
+  revision = "1e3943ee722538420f21945f4bc820347abe433d"
+  version = "v10.1.2"
 
 [[projects]]
-  branch = "master"
   name = "github.com/StackExchange/wmi"
   packages = ["."]
   revision = "5d049714c4a64225c3c79a7cf7d02f7fb5b96338"
+  version = "1.0.0"
 
 [[projects]]
   branch = "master"
   name = "github.com/aristanetworks/goarista"
   packages = ["monotime"]
-  revision = "d6227875a4d124594c68a50e0f98385da89ef8b2"
+  revision = "c41ed3986faaeb0aeed2bd98e92468f8ea317954"
 
 [[projects]]
   branch = "master"
   name = "github.com/btcsuite/btcd"
   packages = ["btcec"]
-  revision = "50de9da05b50eb15658bb350f6ea24368a111ab7"
+  revision = "2be2f12b358dc57d70b8f501b00be450192efbc3"
 
 [[projects]]
   branch = "master"
@@ -88,8 +88,8 @@
 [[projects]]
   name = "github.com/fatih/color"
   packages = ["."]
-  revision = "570b54cabe6b8eb0bc2dfce68d964677d63b5260"
-  version = "v1.5.0"
+  revision = "507f6050b8568533fb3f5504de8e5205fa62a114"
+  version = "v1.6.0"
 
 [[projects]]
   name = "github.com/gizak/termui"
@@ -134,7 +134,7 @@
     ".",
     "simplelru"
   ]
-  revision = "0a025b7e63adc15a622f29b0b2c4c3848243bbf6"
+  revision = "0fb14efe8c47ae851c0034ed7a448854d3d34cf3"
 
 [[projects]]
   branch = "master"
@@ -235,7 +235,7 @@
   branch = "master"
   name = "github.com/peterh/liner"
   packages = ["."]
-  revision = "3681c2a912330352991ecdd642f257efe5b85518"
+  revision = "161ea9c37d6d4e97afe7f8f9cde7e647d49bd091"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -287,8 +287,8 @@
 [[projects]]
   name = "github.com/rs/cors"
   packages = ["."]
-  revision = "7af7a1e09ba336d2ea14b1ce73bf693c6837dbf6"
-  version = "v1.2"
+  revision = "feef513b9575b32f84bafa580aad89b011259019"
+  version = "v1.3.0"
 
 [[projects]]
   name = "github.com/stretchr/testify"
@@ -340,19 +340,23 @@
     "ssh",
     "ssh/terminal"
   ]
-  revision = "d9133f5469342136e669e85192a26056b587f503"
+  revision = "beaf6a35706e5032ae4c3fcf342c663c069f44d2"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = [
+    "bpf",
     "context",
     "html",
     "html/atom",
     "html/charset",
+    "internal/iana",
+    "internal/socket",
+    "ipv4",
     "websocket"
   ]
-  revision = "2fb46b16b8dda405028c50f7c7f0f9dd1fa6bfb1"
+  revision = "cbe0f9307d0156177f9dd5dc85da1a31abc5f2fb"
 
 [[projects]]
   branch = "master"
@@ -367,10 +371,9 @@
     "unix",
     "windows"
   ]
-  revision = "37707fdb30a5b38865cfb95e5aab41707daec7fd"
+  revision = "f6cff0780e542efa0c8e864dc8fa522808f6a598"
 
 [[projects]]
-  branch = "master"
   name = "golang.org/x/text"
   packages = [
     "encoding",
@@ -391,7 +394,8 @@
     "transform",
     "unicode/cldr"
   ]
-  revision = "e19ae1496984b1c655b8044a65c0300a3c878dd3"
+  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
+  version = "v0.3.0"
 
 [[projects]]
   branch = "master"
@@ -400,7 +404,7 @@
     "go/ast/astutil",
     "imports"
   ]
-  revision = "66487607e2081c7c2af2281c62c14ee000d5024b"
+  revision = "10db2d12cfa8602d0ffa73c5c2270ce47ba56b30"
 
 [[projects]]
   branch = "v1"
@@ -450,6 +454,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a4274f48996dd5097f148fdb395e9387971a5d74332aea896cc1da594af38458"
+  inputs-digest = "ecd49f17f441f881df6f2f5afcf6adc9785ba541e579a3ef5c917d820a095a6d"
   solver-name = "gps-cdcl"
   solver-version = 1
