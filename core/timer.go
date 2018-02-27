@@ -11,10 +11,13 @@ import (
 
 const (
 	tickPeriod time.Duration = 500 * time.Millisecond
-	bufferSize               = 1024
+	bufferSize               = 256
 )
 
-type OnTimeOut func()
+type OnTimeOut struct {
+	Callback func(ctx context.Context )
+	Ctx      context.Context
+}
 
 var timerIds *AtomicInt64
 
@@ -73,6 +76,7 @@ type timerType struct {
 	interval   time.Duration
 	timeout    *OnTimeOut
 	index      int // for container/heap
+	ctx        *context.Context
 }
 
 func newTimer(when time.Time, interv time.Duration, to *OnTimeOut) *timerType {
@@ -81,6 +85,8 @@ func newTimer(when time.Time, interv time.Duration, to *OnTimeOut) *timerType {
 		expiration: when,
 		interval:   interv,
 		timeout:    to,
+
+
 	}
 }
 
