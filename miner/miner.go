@@ -87,7 +87,7 @@ func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine con
 		LastEndBlockHeight:  eth.BlockChain().CurrentBlock().Number(),
 		DelegateTotalNumber: len(initDelegate),
 		CurrentDposList:     initDelegate,
-		PendingDposList:     initDelegate,
+		PendingDposList:     initDelegate,//代理池也直接挂在这里，跟newWorker一样
 	}
 	miner.Register(NewCpuAgent(eth.BlockChain(), engine))
 	go miner.update()

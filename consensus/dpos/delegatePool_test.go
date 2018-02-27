@@ -11,8 +11,8 @@ func TestPoll_IsElected(t *testing.T) {
 	poll := NewPoll(5)
 
 	register := []CandidateWrapper{
-		{Candidate{address: "winner"}, 0},
-		{Candidate{address: "second"}, 0},
+		{Candidate{Address: "winner"}, 0},
+		{Candidate{Address: "second"}, 0},
 	}
 
 	for _, candidate := range register {
@@ -22,17 +22,17 @@ func TestPoll_IsElected(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	winners := map[CandidateWrapper]int{
-		{Candidate{address: "winner", votes: 3}, 1}:  20,
-		{Candidate{address: "second", votes: 6}, 1}:  19,
-		{Candidate{address: "thirdd", votes: 2}, 1}:  17,
-		{Candidate{address: "forthh", votes: 5}, 1}:  11,
-		{Candidate{address: "fifthh", votes: 10}, 1}: 10,
+		{Candidate{Address: "winner", Vote: 3}, 1}:  20,
+		{Candidate{Address: "second", Vote: 6}, 1}:  19,
+		{Candidate{Address: "thirdd", Vote: 2}, 1}:  17,
+		{Candidate{Address: "forthh", Vote: 5}, 1}:  11,
+		{Candidate{Address: "fifthh", Vote: 10}, 1}: 10,
 	}
 
 	losers := map[CandidateWrapper]int{
-		{Candidate{address: "loser1", votes: 1}, 1}: 1,
-		{Candidate{address: "loser2", votes: 6}, 1}: 9,
-		{Candidate{address: "loser3", votes: 8}, 1}: 5,
+		{Candidate{Address: "loser1", Vote: 1}, 1}: 1,
+		{Candidate{Address: "loser2", Vote: 6}, 1}: 9,
+		{Candidate{Address: "loser3", Vote: 8}, 1}: 5,
 	}
 
 	var wg sync.WaitGroup
@@ -49,14 +49,14 @@ func TestPoll_IsElected(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	for candidateWrapper := range winners {
-		if !poll.IsElected(candidateWrapper.candidate.address) {
+		if !poll.IsElected(candidateWrapper.candidate.Address) {
 			// t.Fatalf("%s not elected: %v\n", candidate, poll.top)
 			fmt.Printf("%s not elected: %v\n", candidateWrapper.candidate, poll.top)
 		}
 	}
 
 	for candidateWrapper := range losers {
-		if poll.IsElected(candidateWrapper.candidate.address) {
+		if poll.IsElected(candidateWrapper.candidate.Address) {
 			// t.Fatalf("%s is elected: %v\n", candidate, poll.top)
 			fmt.Printf("%s is elected: %v\n", candidateWrapper.candidate, poll.top)
 		}

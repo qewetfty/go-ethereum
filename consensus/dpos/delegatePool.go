@@ -21,8 +21,11 @@ type DelegatePoll struct {
 
 // 候选人
 type Candidate struct {
-	address string
-	votes   int64
+	Address string
+	//Normal bool
+	Vote int64 //投票数
+	Nickname string // delegate name
+	//publicKey string
 }
 
 type CandidateWrapper struct {
@@ -53,39 +56,39 @@ func (p *DelegatePoll) startListening() {
 			candidate := candidateWrapper.candidate
 			switch candidateWrapper.action {
 			case register:
-				if _, ok := p.votes[candidate.address]; !ok {
-					p.votes[candidate.address] = 0
-					fmt.Printf("%s 注册代理成功\n", candidate.address)
+				if _, ok := p.votes[candidate.Address]; !ok {
+					p.votes[candidate.Address] = 0
+					fmt.Printf("%s 注册代理成功\n", candidate.Address)
 				} else {
-					fmt.Printf("%s 代理已注册,不能重复注册\n", candidate.address)
+					fmt.Printf("%s 代理已注册,不能重复注册\n", candidate.Address)
 				}
 
 			case addVote:
-				if _, ok := p.votes[candidate.address]; !ok {
-					fmt.Printf("%s 未注册|投票失败\n", candidate.address)
+				if _, ok := p.votes[candidate.Address]; !ok {
+					fmt.Printf("%s 未注册|投票失败\n", candidate.Address)
 				} else {
-					currentValue := p.votes[candidate.address]
-					nowVoteNumber := currentValue + candidate.votes
-					p.votes[candidate.address] = nowVoteNumber
+					currentValue := p.votes[candidate.Address]
+					nowVoteNumber := currentValue + candidate.Vote
+					p.votes[candidate.Address] = nowVoteNumber
 
-					p.insert(Candidate{candidate.address, nowVoteNumber})
+					p.insert(Candidate{candidate.Address, nowVoteNumber,candidate.Nickname})
 
-					fmt.Printf("-> %s 增加 %d 票,现在票数 %d;当选列表:%v\n", candidate.address, candidate.votes, nowVoteNumber, p.top)
+					fmt.Printf("-> %s 增加 %d 票,现在票数 %d;当选列表:%v\n", candidate.Address, candidate.Vote, nowVoteNumber, p.top)
 					fmt.Printf("-> 候选池列表:%v\n", p.votes)
 				}
 			case subVote:
-				if _, ok := p.votes[candidate.address]; !ok {
-					fmt.Printf("%s 未注册|减票失败\n", candidate.address)
+				if _, ok := p.votes[candidate.Address]; !ok {
+					fmt.Printf("%s 未注册|减票失败\n", candidate.Address)
 				} else {
-					currentValue := p.votes[candidate.address]
-					nowVoteNumber := currentValue - candidate.votes
+					currentValue := p.votes[candidate.Address]
+					nowVoteNumber := currentValue - candidate.Vote
 					if nowVoteNumber < 0 {
 						nowVoteNumber = 0
 					}
 
-					p.insert(Candidate{candidate.address, nowVoteNumber})
+					p.insert(Candidate{candidate.Address, nowVoteNumber,candidate.Nickname})
 
-					fmt.Printf("-> %s 减去 %d 票,现在票数 %d;当选列表:%v\n", candidate.address, candidate.votes, nowVoteNumber, p.top)
+					fmt.Printf("-> %s 减去 %d 票,现在票数 %d;当选列表:%v\n", candidate.Address, candidate.Vote, nowVoteNumber, p.top)
 					fmt.Printf("-> 候选池列表:%v\n", p.votes)
 				}
 
@@ -107,15 +110,15 @@ func (p *DelegatePoll) startListening() {
 // of votes for last candidate
 func (p *DelegatePoll) minVotes() int64 {
 	if len(p.top) == cap(p.top) {
-		return p.top[len(p.top)-1].votes
+		return p.top[len(p.top)-1].Vote
 	}
 	return 0
 }
 
 func (p *DelegatePoll) insert(NewCandidate Candidate) {
-	tempVotes := NewCandidate.votes
+	tempVotes := NewCandidate.Vote
 	if len(p.top) == p.maxElected {
-		minVotes := p.top[p.maxElected-1].votes
+		minVotes := p.top[p.maxElected-1].Vote
 		if tempVotes-minVotes <= 0 {
 			return
 		}
@@ -131,7 +134,7 @@ func (p *DelegatePoll) insert(NewCandidate Candidate) {
 		p.top[insertedPos] = NewCandidate
 	}
 	requiredPos := sort.Search(insertedPos, func(j int) bool {
-		return p.top[j].votes-NewCandidate.votes < 0
+		return p.top[j].Vote-NewCandidate.Vote < 0
 	})
 
 	if requiredPos != insertedPos {
@@ -145,7 +148,7 @@ func (p *DelegatePoll) insert(NewCandidate Candidate) {
 func GetPosition(top []Candidate, candidate Candidate) int {
 	position := -1
 	for i := 0; i < len(top); i++ {
-		if top[i].address == candidate.address {
+		if top[i].Address == candidate.Address {
 			position = i
 			break
 		}
